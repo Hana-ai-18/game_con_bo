@@ -1,32 +1,34 @@
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.button import Button
 from kivy.uix.label import Label
+from kivy.uix.image import Image
 from kivy.uix.popup import Popup
 from kivy.metrics import dp
 from kivy.app import App
-from kivy.logger import Logger
+from kivy.core.window import Window
+from kivy.uix.behaviors import ButtonBehavior
 from screens.background import ParallaxWidget
 
-
+class ImageButton(ButtonBehavior, Image):
+    pass
 
 class ShopScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+
         self.bg_parallax = ParallaxWidget()
-        self.add_widget(self.bg_parallax)  # Thêm nền parallax trước
-        
-        self.current_tab = 'skin'
+        self.add_widget(self.bg_parallax)
+
+        self.current_index = 0
+        self.skin_items = []
+
         self.build_ui()
-        from kivy.core.window import Window
         Window.bind(size=self.update_bg)
 
     def update_bg(self, *args):
         if hasattr(self, 'bg_parallax'):
             self.bg_parallax.on_resize()
-
 
     def build_ui(self):
         self.main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
@@ -36,24 +38,41 @@ class ShopScreen(Screen):
         self.main_layout.add_widget(title)
 
         # Points display
-        self.points_label = Label(text='', size_hint=(1, 0.05), halign='center')
-        self.points_label.markup = True
+        self.points_label = Label(text='', size_hint=(1, 0.05), halign='center', markup=True)
         self.main_layout.add_widget(self.points_label)
 
-        # Tab buttons
-        tab_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
-        skin_btn = Button(text='Skins', on_press=lambda x: self.switch_tab('skin'))
-        background_btn = Button(text='Backgrounds', on_press=lambda x: self.switch_tab('background'))
-        tab_layout.add_widget(skin_btn)
-        tab_layout.add_widget(background_btn)
-        self.main_layout.add_widget(tab_layout)
+        # Skin preview area
+        preview_container = BoxLayout(size_hint=(1, 0.65), orientation='vertical', spacing=10)
 
-        # Scrollable item list
-        scroll = ScrollView(size_hint=(1, 0.65))
-        self.item_container = BoxLayout(orientation='vertical', spacing=10, size_hint_y=None)
-        self.item_container.bind(minimum_height=self.item_container.setter('height'))
-        scroll.add_widget(self.item_container)
-        self.main_layout.add_widget(scroll)
+        # Navigation + Skin Image
+        skin_nav_layout = BoxLayout(size_hint=(1, 0.85), spacing=10)
+        self.left_btn = ImageButton(source="assets/images/buttons/left_button.png", size_hint=(None, None), size=(60, 60))
+        self.left_btn.bind(on_press=self.prev_skin)
+
+        self.skin_image = Image(size_hint=(1, 1), allow_stretch=True)
+        self.skin_bg = BoxLayout(size_hint=(0.8, 1), padding=10)
+        self.skin_bg.add_widget(self.skin_image)
+
+        self.right_btn = ImageButton(source="assets/images/buttons/right_button.png", size_hint=(None, None), size=(60, 60))
+        self.right_btn.bind(on_press=self.next_skin)
+
+        skin_nav_layout.add_widget(self.left_btn)
+        skin_nav_layout.add_widget(self.skin_bg)
+        skin_nav_layout.add_widget(self.right_btn)
+
+        # Price label below skin image (yellow background effect can be set via skin_bg)
+        self.price_label = Label(text='', markup=True, size_hint=(1, 0.15), halign='center', valign='middle')
+        self.price_label.bind(size=self.price_label.setter('text_size'))
+
+        preview_container.add_widget(skin_nav_layout)
+        preview_container.add_widget(self.price_label)
+
+        self.main_layout.add_widget(preview_container)
+
+        # Action button (buy/use/using)
+        self.action_btn = ImageButton(size_hint=(None, None), size=(200, 80), allow_stretch=True)
+        self.action_btn.bind(on_press=self.on_action_pressed)
+        self.main_layout.add_widget(self.action_btn)
 
         # Back button
         back_btn = Button(text='← Back', size_hint=(1, 0.1))
@@ -62,106 +81,65 @@ class ShopScreen(Screen):
 
         self.add_widget(self.main_layout)
 
-    def switch_tab(self, tab_type):
-        self.current_tab = tab_type
-        self.refresh_shop()
-
     def on_enter(self):
-        self.refresh_shop()
-
-    def refresh_shop(self):
-        self.item_container.clear_widgets()
         app = App.get_running_app()
-        dm = app.data_manager
+        self.dm = app.data_manager
+        self.skin_items = [item for item in self.dm.get_shop_items() if item['type'] == 'skin']
+        self.current_index = 0
+        self.refresh_skin_display()
 
-        points = dm.get_total_points()
-        purchased = dm.get_purchased_items()
-        items = [item for item in dm.get_shop_items() if item['type'] == self.current_tab]
+    def prev_skin(self, *args):
+        self.current_index = (self.current_index - 1) % len(self.skin_items)
+        self.refresh_skin_display()
 
-        # Chọn đúng loại đã trang bị
-        equipped = dm.get_equipped_skin() if self.current_tab == 'skin' else dm.get_equipped_background()
+    def next_skin(self, *args):
+        self.current_index = (self.current_index + 1) % len(self.skin_items)
+        self.refresh_skin_display()
+
+    def refresh_skin_display(self):
+        item = self.skin_items[self.current_index]
+        app = App.get_running_app()
+        points = self.dm.get_total_points()
+        purchased = self.dm.get_purchased_items()
+        equipped = self.dm.get_equipped_skin()
 
         self.points_label.text = f'[b]Points: {points}[/b]'
 
-        for item in items:
-            item_id = item['id']
-            name = item['name']
-            cost = item['cost']
+        skin_path = f"assets/images/characters/{item['id']}.png"
+        self.skin_image.source = skin_path
 
-            box = BoxLayout(size_hint_y=None, height=dp(60), padding=5, spacing=10)
+        # Yellow background price label
+        self.price_label.text = f"[color=ffff00][b]{item['name']} - {item['cost']} pts[/b][/color]"
 
-            label = Label(
-                text=f'{name} [color=ffffaa]{cost} pts[/color]',
-                markup=True,
-                halign='left',
-                valign='middle',
-                size_hint=(0.6, 1)
-            )
-            label.bind(size=label.setter('text_size'))
+        if item['id'] not in purchased:
+            self.action_btn.source = "assets/images/buttons/buy_button.png"
+        elif item['id'] == equipped:
+            self.action_btn.source = "assets/images/buttons/using_button.png"
+        else:
+            self.action_btn.source = "assets/images/buttons/use_button.png"
 
-            btn = Button(size_hint=(0.4, 1))
+    def on_action_pressed(self, *args):
+        item = self.skin_items[self.current_index]
+        item_id = item['id']
+        purchased = self.dm.get_purchased_items()
+        equipped = self.dm.get_equipped_skin()
+        app = App.get_running_app()
 
-            if item_id in purchased:
-                if item_id == equipped:
-                    btn.text = 'Using'
-                    btn.disabled = True
-                else:
-                    btn.text = 'Use'
-                    btn.bind(on_press=lambda b, i=item_id: self.use_item(i))
+        if item_id not in purchased:
+            if self.dm.purchase_item(item_id):
+                app.sound_manager.play_sound('coin')
+                self.dm.set_equipped_skin(item_id)
             else:
-                btn.text = f'Buy ({cost})'
-                if cost <= points:
-                    btn.bind(on_press=lambda b, i=item_id: self.buy_item(i))
-                else:
-                    btn.bind(on_press=lambda b: self.show_popup("Not enough points!"))
+                self.show_popup("Not enough points!")
+                return
+        elif item_id != equipped:
+            self.dm.set_equipped_skin(item_id)
+            app.sound_manager.play_sound('equip')
 
-            box.add_widget(label)
-            box.add_widget(btn)
-            self.item_container.add_widget(box)
-
-    def buy_item(self, item_id):
-        app = App.get_running_app()
-        dm = app.data_manager
-        if dm.purchase_item(item_id):
-            app.sound_manager.play_sound('coin')
-            self.show_popup("Purchase successful!")
-            self.use_item(item_id)  # Tự động trang bị luôn sau khi mua
-        else:
-            app.sound_manager.play_sound('error')
-            self.show_popup("Not enough points or already owned!")
-        self.refresh_shop()
-
-    def use_item(self, item_id):
-        app = App.get_running_app()
-        dm = app.data_manager
-        item = dm.get_item_by_id(item_id)
-        if not item:
-            self.show_popup("Invalid item.")
-            return
-
-        if item['type'] == 'skin':
-            dm.set_equipped_skin(item_id)
-        elif item['type'] == 'background':
-            dm.set_equipped_background(item_id)
-
-        app.sound_manager.play_sound('equip')
-        self.preview_item(item_id)
-        self.refresh_shop()
-
-    def preview_item(self, item_id):
-        app = App.get_running_app()
-        if item_id.startswith("bo_"):
-            path = f"assets/images/characters/{item_id}.png"
-        elif item_id.startswith("background_"):
-            path = f"assets/images/backgrounds/{item_id}.png"
-        else:
-            return
-        Logger.info(f"Previewing: {path}")
-        # Hiển thị ở một nơi nào đó (nếu bạn muốn)
+        self.refresh_skin_display()
 
     def show_popup(self, message):
         popup = Popup(title='Shop',
                       content=Label(text=message),
                       size_hint=(None, None), size=(300, 200))
         popup.open()
-
