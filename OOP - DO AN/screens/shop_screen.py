@@ -1,15 +1,17 @@
 from kivy.uix.screenmanager import Screen
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.image import Image
 from kivy.uix.popup import Popup
-from kivy.metrics import dp
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.uix.behaviors import ButtonBehavior
 from screens.background import ParallaxWidget
+from screens.hover_button import HoverImageButton
+from kivy.uix.relativelayout import RelativeLayout
+from kivy.uix.boxlayout import BoxLayout
 
+# Button hình ảnh
 class ImageButton(ButtonBehavior, Image):
     pass
 
@@ -17,6 +19,7 @@ class ShopScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        # Nền parallax
         self.bg_parallax = ParallaxWidget()
         self.add_widget(self.bg_parallax)
 
@@ -31,55 +34,135 @@ class ShopScreen(Screen):
             self.bg_parallax.on_resize()
 
     def build_ui(self):
-        self.main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        self.main_layout = FloatLayout()
+        self.add_widget(self.main_layout)
 
-        # Title
-        title = Label(text='[b][size=32]🛒 Shop[/size][/b]', markup=True, size_hint=(1, 0.1))
-        self.main_layout.add_widget(title)
+       # Layout chứa icon và điểm
+        points_container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(None, None),
+            size=(200, 50),
+            pos_hint={'center_y': 0.87, 'center_x': 0.5},
+            spacing=10
+        )
 
-        # Points display
-        self.points_label = Label(text='', size_hint=(1, 0.05), halign='center', markup=True)
-        self.main_layout.add_widget(self.points_label)
+        # Icon tiền
+        coin_icon = Image(
+            source="assets/images/buttons/total_score.png",  
+            size_hint=(None, None),
+            size=(80, 80)
+        )
+        points_container.add_widget(coin_icon)
 
-        # Skin preview area
-        preview_container = BoxLayout(size_hint=(1, 0.65), orientation='vertical', spacing=10)
+        # Nhãn số điểm
+        self.points_label = Label(
+            text='',
+            markup=True,
+            font_name="assets/fonts/UTM Alba Matter.ttf",
+            font_size=60,
+            pos_hint={'center_y': 0.89, 'center_x': 0.5},
+            halign='left',
+            valign='middle'
+        )
+        self.points_label.bind(size=self.points_label.setter('text_size'))
 
-        # Navigation + Skin Image
-        skin_nav_layout = BoxLayout(size_hint=(1, 0.85), spacing=10)
-        self.left_btn = ImageButton(source="assets/images/buttons/left_button.png", size_hint=(None, None), size=(60, 60))
+        self.points_label.bind(size=self.points_label.setter('text_size'))
+
+        points_container.add_widget(self.points_label)
+        self.main_layout.add_widget(points_container)
+        # Frame nền của shop
+        self.shop_frame = Image(
+            source="assets/images/backgrounds/shop.png",
+            allow_stretch=True,
+            keep_ratio=False,
+            size_hint=(0.7, 0.7),
+            pos_hint={"center_x": 0.5, "center_y": 0.5}
+        )
+        self.main_layout.add_widget(self.shop_frame)
+
+        # Ảnh nhân vật (skin)
+        self.skin_image = Image(
+            allow_stretch=True,
+            size_hint=(0.4, 0.4),
+            pos_hint={"center_x": 0.5, "center_y": 0.50}
+        )
+        self.main_layout.add_widget(self.skin_image)
+
+        # Nút trái
+        self.left_btn = HoverImageButton(
+            source="assets/images/buttons/left_button.png",
+            size_hint=(None, None),
+            size=(120, 120),
+            pos_hint={"center_x": 0.29, "center_y": 0.42}
+        )
         self.left_btn.bind(on_press=self.prev_skin)
+        self.main_layout.add_widget(self.left_btn)
 
-        self.skin_image = Image(size_hint=(1, 1), allow_stretch=True)
-        self.skin_bg = BoxLayout(size_hint=(0.8, 1), padding=10)
-        self.skin_bg.add_widget(self.skin_image)
-
-        self.right_btn = ImageButton(source="assets/images/buttons/right_button.png", size_hint=(None, None), size=(60, 60))
+        # Nút phải
+        self.right_btn = HoverImageButton(
+            source="assets/images/buttons/right_button.png",
+            size_hint=(None, None),
+            size=(120, 120),
+            pos_hint={"center_x": 0.70, "center_y": 0.42}
+        )
         self.right_btn.bind(on_press=self.next_skin)
+        self.main_layout.add_widget(self.right_btn)
 
-        skin_nav_layout.add_widget(self.left_btn)
-        skin_nav_layout.add_widget(self.skin_bg)
-        skin_nav_layout.add_widget(self.right_btn)
+        # Giá skin
+        # Layout chứa hình và nhãn chồng lên nhau
+        price_container = RelativeLayout(
+            size_hint=(None, None),
+            size=(160, 80),
+            pos_hint={"center_x": 0.5, "center_y": 0.35}
+        )
 
-        # Price label below skin image (yellow background effect can be set via skin_bg)
-        self.price_label = Label(text='', markup=True, size_hint=(1, 0.15), halign='center', valign='middle')
+        # Hình nền phía sau
+        price_bg = Image(
+            source="assets/images/buttons/price.png", 
+            allow_stretch=True,
+            keep_ratio=False,
+            size_hint=(None, None),
+            size=(160, 80),
+            pos_hint={"center_x": 0.5, "center_y": 0.35}
+        )
+        price_container.add_widget(price_bg)
+
+        # Nhãn giá
+        self.price_label = Label(
+            text='',
+            markup=True,
+            font_name="assets/fonts/UTM Alba Matter.ttf",
+            halign='center',
+            valign='middle',
+            size_hint=(1, 1),
+            pos_hint={"center_x": 0.5, "center_y": 0.35}
+        )
         self.price_label.bind(size=self.price_label.setter('text_size'))
 
-        preview_container.add_widget(skin_nav_layout)
-        preview_container.add_widget(self.price_label)
+        price_container.add_widget(self.price_label)
 
-        self.main_layout.add_widget(preview_container)
+        # Thêm container vào layout chính
+        self.main_layout.add_widget(price_container)
 
-        # Action button (buy/use/using)
-        self.action_btn = ImageButton(size_hint=(None, None), size=(200, 80), allow_stretch=True)
+        # Nút hành động (Buy/Use/Using)
+        self.action_btn = HoverImageButton(
+            size_hint=(None, None),
+            size=(260, 100),
+            pos_hint={"center_x": 0.5, "center_y": 0.26},
+            allow_stretch=True
+        )
         self.action_btn.bind(on_press=self.on_action_pressed)
         self.main_layout.add_widget(self.action_btn)
 
-        # Back button
-        back_btn = Button(text='← Back', size_hint=(1, 0.1))
-        back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'main_menu'))
-        self.main_layout.add_widget(back_btn)
-
-        self.add_widget(self.main_layout)
+        # Nút quay lại
+        self.back_btn = HoverImageButton(
+            source="assets/images/buttons/home.png",
+            size_hint=(None, None),
+            size=(120, 120),
+            pos_hint={"right": 0.98, "y": 0.02}
+        )
+        self.back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'main_menu'))
+        self.main_layout.add_widget(self.back_btn)
 
     def on_enter(self):
         app = App.get_running_app()
@@ -103,14 +186,16 @@ class ShopScreen(Screen):
         purchased = self.dm.get_purchased_items()
         equipped = self.dm.get_equipped_skin()
 
-        self.points_label.text = f'[b]Points: {points}[/b]'
+        self.points_label.text = f'[color=ff3333][b]{points}[/b][/color]'
 
+        # Cập nhật ảnh nhân vật
         skin_path = f"assets/images/characters/{item['id']}.png"
         self.skin_image.source = skin_path
 
-        # Yellow background price label
-        self.price_label.text = f"[color=ffff00][b]{item['name']} - {item['cost']} pts[/b][/color]"
+        # Nhãn giá
+        self.price_label.text = f"[color=ffff00][b]${item['cost']}[/b][/color]"
 
+        # Cập nhật nút hành động
         if item['id'] not in purchased:
             self.action_btn.source = "assets/images/buttons/buy_button.png"
         elif item['id'] == equipped:
